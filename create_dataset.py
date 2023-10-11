@@ -1,5 +1,6 @@
 import os
 import json
+import pickle
 import argparse
 from data_module.preprocessing import (
     open_chat_logs,
@@ -33,10 +34,10 @@ def create_dataset(
     for message in messages:
         datum = {'text': message.text}
 
-        if kwargs.get('channel'):
+        if kwargs.get('add_channel'):
             datum['channel'] = channel
 
-        if kwargs.get('category'):
+        if kwargs.get('add_category'):
             datum['category'] = message.category
 
         if kwargs.get('previous_messages'):
@@ -78,35 +79,43 @@ def context_messages(chat_messages, chat_message, k=2):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--chat_log_directory', type=str)
-    parser.add_argument('--messages_directory', type=str)
-    parser.add_argument('--output_fpath', type=str)
-    parser.add_argument('--channel')
-    parser.add_argument('--category')
+    parser.add_argument('--raw_data_directory', type=str)
+    parser.add_argument('--processed_data_directory', type=str)
+    parser.add_argument('--output_file_path', type=str)
+    parser.add_argument('--add_channel')
+    parser.add_argument('--add_category')
     parser.add_argument('--previous_user_messages', type=int)
     parser.add_argument('--context_user_messages', type=int)
 
     args = parser.parse_args()
     data = []
-    for chat_log_fpath in os.listdir(args.chat_log_directory):
-        channel, _ = os.path.splitext(chat_log_fpath)
+    raw_data_directory = args.raw_data_directory
+    processed_data_directory = args.processed_data_directory
+    for file_name in os.listdir(raw_data_directory):
+        channel, _ = os.path.splitext(file_name)
+        raw_data_fpath = os.path.join(raw_data_directory, file_name)
+        users_messages_fpath = os.path.join(processed_data_directory, f'{channel}_users_messages.json')
+        good_messages_fpath = os.path.join(processed_data_directory, f'{channel}_good_messages.tsv')
+        bad_messages_fpath = os.path.join(processed_data_directory, f'{channel}_bad_messages.tsv')
 
-        chat_messages = open_chat_logs(chat_log_fpath)
-        users_messages, good_messages, bad_messages = open_messages(
-            f'{channel}_users_messages.json',
-            f'{channel}_good_messages.tsv',
-            f'{channel}_bad_messages.tsv'
-        )
+        try:
+            chat_messages = open_chat_logs(raw_data_fpath)
+            users_messages, good_messages, bad_messages = open_messages(
+                users_messages_fpath,
+                good_messages_fpath,
+                bad_messages_fpath
+            )
 
-        good_dataset = create_dataset(
-            channel, chat_messages, users_messages, good_messages, 0 **vars(args)
-        )
-        bad_dataset = create_dataset(
-            channel, chat_messages, users_messages, bad_messages, 1, **vars(args)
-        )
-        data.extend(good_dataset)
-        data.extend(bad_dataset)
+            good_dataset = create_dataset(
+                channel, chat_messages, users_messages, good_messages, 0, **vars(args)
+            )
+            bad_dataset = create_dataset(
+                channel, chat_messages, users_messages, bad_messages, 1, **vars(args)
+            )
+            data.extend(good_dataset)
+            data.extend(bad_dataset)
+        except:
+            print(f'Error with {file_name}')
 
-    with open(args.output_fpath, 'wb') as pickle_file:
+    with open(args.output_file_path, 'wb') as pickle_file:
         pickle.dump(data, pickle_file)
-
