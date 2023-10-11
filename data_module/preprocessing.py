@@ -186,10 +186,12 @@ def clean_bad_message(message):
 
 
 def clean_post_processing_messages(good_messages, bad_messages):
-    most_common_message = Counter([message.text.lower() for message in bad_messages]).most_common(1)
-    most_common_message = most_common_message[0][0]
-    bad_messages = [
-        message for message in bad_messages
-        if most_common_message not in message.text.lower()
-    ]
+    if len(bad_messages):
+        most_common_message = Counter([message.text.lower() for message in bad_messages]).most_common(1)
+        most_common_message = most_common_message[0][0]
+        bad_messages = [
+            message for message in bad_messages
+            if most_common_message not in message.text.lower()
+        ]
+
     return good_messages, bad_messages
