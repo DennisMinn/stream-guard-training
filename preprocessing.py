@@ -14,9 +14,17 @@ def clean_chat_logs(trainer, model, data_module):
     good_dataloader, bad_dataloader = data_module.predict_dataloader()
     outputs = trainer.predict(model, [good_dataloader, bad_dataloader])
 
-    good_embeddings = [batch_output['embeddings'] for batch_output in outputs[0]]
-    bad_embeddings = [batch_output['embeddings'] for batch_output in outputs[1]]
-    classifications = [batch_output['classifications'] for batch_output in outputs[0]]
+    if outputs and outputs[0]:
+        good_embeddings = [batch_output['embeddings'] for batch_output in outputs[0]]
+        classifications = [batch_output['classifications'] for batch_output in outputs[0]]
+    else:
+        good_embeddings = []
+        classifications = []
+
+    if outputs and outputs[1]:
+        bad_embeddings = [batch_output['embeddings'] for batch_output in outputs[1]]
+    else:
+        bad_embeddings = []
 
     banned_usernames = set([message.username for message in data_module.bad_dataset])
     false_positive_messages = set([
@@ -31,7 +39,7 @@ def clean_chat_logs(trainer, model, data_module):
     ])
 
     good_messages = similar_messages.union(false_positive_messages)
-    bad_messages = data_module.bad_dataset
+    bad_messages = data_module.bad_dataset.messages
     return good_messages, bad_messages
 
 
@@ -44,12 +52,16 @@ def main():
 
     args = parser.parse_args()
 
-    trainer = L.Trainer()
+    trainer = L.Trainer(
+        logger=False,
+        enable_progress_bar=False
+    )
     model = PreprocessingModel(args.model_name)
     data_module = PreprocessingDataModule(
         file_path=args.input_path,
         model_name=args.model_name,
-        batch_size=args.batch_size
+        batch_size=args.batch_size,
+        num_workers=8
     )
 
     data_module.good_messages, data_module.bad_messages = clean_chat_logs(trainer, model, data_module)

@@ -44,12 +44,12 @@ def similar_message_indices(good_embeddings, bad_embeddings):
         for bad_embedding in cosine_similarities
     ]
 
-    good_message_indices = torch.cat(good_message_indices).tolist()
+    good_message_indices = torch.cat(good_message_indices).tolist() if good_message_indices else []
     return good_message_indices
 
 
 def false_positive_message_indices(classifications):
-    classifications = torch.cat(classifications)
+    classifications = torch.cat(classifications) if classifications else []
     good_messages_indices = [
         index for index, probabilty in enumerate(classifications)
         if probabilty[1].item() > 0.95

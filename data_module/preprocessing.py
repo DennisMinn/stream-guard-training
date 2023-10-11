@@ -1,5 +1,6 @@
 import os
 import csv
+import sys
 import re
 import json
 
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from typing import List
     from transformers import PreTrainedTokenizerFast
 
+csv.field_size_limit(sys.maxsize)
 
 ChatMessage = namedtuple('ChatMessage', ['timestamp', 'category', 'username', 'text'])
 
@@ -121,7 +123,7 @@ def open_chat_logs(fpath):
         username, text = message.username, message.text
 
         if (
-            (text.startswith('DELELTEDMESSAGE') or text == 'TIMEOUT' or text == 'BAN') and
+            (text.startswith('DELETEDMESSAGE') or text == 'TIMEOUT' or text == 'BAN') and
             len(users_messages[username]) and
             users_messages[username][-1] != text  # Check for spam
         ):
