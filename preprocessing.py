@@ -1,7 +1,10 @@
 import argparse
 
 import lightning as L
-from data_module.preprocessing import PreprocessingDataModule
+from data_module.preprocessing import (
+    PreprocessingDataModule,
+    clean_post_processing_messages
+)
 from model.preprocessing import (
     PreprocessingModel,
     similar_message_indices,
@@ -40,10 +43,12 @@ def clean_chat_logs(trainer, model, data_module):
 
     good_messages = similar_messages.union(false_positive_messages)
     bad_messages = data_module.bad_dataset.messages
+    good_messages, bad_messages = clean_post_processing_messages(good_messages, bad_messages)
+
     return good_messages, bad_messages
 
 
-def main():
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_path', type=str)
     parser.add_argument('--output_directory', type=str)
@@ -69,7 +74,3 @@ def main():
         data_module.export(args.output_directory)
     except:
         print(f'Error with {args.input_path}')
-
-
-if __name__ == '__main__':
-    main()

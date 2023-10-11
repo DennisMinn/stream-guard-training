@@ -5,7 +5,7 @@ import re
 import json
 
 from typing import TYPE_CHECKING
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, Counter
 from dataclasses import dataclass
 from pytorch_lightning import LightningDataModule
 
@@ -115,6 +115,10 @@ def open_chat_logs(fpath):
             chat_message = ChatMessage(*message)
             chat_messages.append(chat_message)
 
+    return chat_messages
+
+
+def chat_log_to_messages(chat_messages):
     users_messages = defaultdict(list)
     good_messages = set()
     bad_messages = set()
@@ -125,7 +129,7 @@ def open_chat_logs(fpath):
         if (
             (text.startswith('DELETEDMESSAGE') or text == 'TIMEOUT' or text == 'BAN') and
             len(users_messages[username]) and
-            users_messages[username][-1] != text  # Check for spam
+            users_messages[username][-1].text != text  # Check for spam
         ):
             bad_messages.add(users_messages[username][-1])
         else:
@@ -179,3 +183,13 @@ def clean_bad_message(message):
         return False
 
     return True
+
+
+def clean_post_processing_messages(good_messages, bad_messages):
+    most_common_message = Counter([message.text.lower() for message in bad_messages]).most_common(1)
+    most_common_message = most_common_message[0][0]
+    bad_messages = [
+        message for message in bad_messages
+        if most_common_message not in message.text.lower()
+    ]
+    return good_messages, bad_messages
