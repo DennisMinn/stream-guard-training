@@ -4,105 +4,34 @@ import sys
 import re
 import json
 
-from typing import TYPE_CHECKING
 from collections import namedtuple, defaultdict, Counter
-from dataclasses import dataclass
-from pytorch_lightning import LightningDataModule
-
-from transformers import AutoTokenizer
-from torch.utils.data import Dataset, DataLoader
-
-if TYPE_CHECKING:
-    from typing import List
-    from transformers import PreTrainedTokenizerFast
 
 csv.field_size_limit(sys.maxsize)
 
 ChatMessage = namedtuple('ChatMessage', ['timestamp', 'category', 'username', 'text'])
 
 
-@dataclass
-class PreprocessingDataset(Dataset):
-    messages: 'List[ChatMessage]'
-    tokenizer: 'PreTrainedTokenizerFast'
+def write_chat_logs(
+    users_messages,
+    good_messages,
+    bad_messages,
+    input_fpath,
+    output_directory
+):
+    def _write_chat_logs(fpath, chat_messages):
+        with open(fpath, 'w', newline='') as tsv_file:
+            tsv_writer = csv.writer(tsv_file, delimiter='\t')
 
-    def __getitem__(self, index):
-        return self.messages[index]
+            for message in chat_messages:
+                tsv_writer.writerow(message)
 
-    def __len__(self):
-        return len(self.messages)
+    file_name = os.path.basename(input_fpath)
+    channel, _ = os.path.splitext(file_name)
+    _write_chat_logs(f'{output_directory}/{channel}_good_messsages.tsv', good_messages)
+    _write_chat_logs(f'{output_directory}/{channel}_bad_messsages.tsv', bad_messages)
 
-    def collate_fn(self, batch: 'List[ChatMessage]'):
-        formatted_batch = [message.text for message in batch]
-        batch_encodings = self.tokenizer(
-            formatted_batch,
-            padding='longest',
-            max_length=self.tokenizer.model_max_length,
-            truncation=True,
-            return_tensors='pt'
-        )
-
-        return {'batch_encodings': batch_encodings}
-
-
-@dataclass
-class PreprocessingDataModule(LightningDataModule):
-    file_path: str
-    model_name: str
-    batch_size: int
-    num_workers: int = 0
-
-    def __post_init__(self):
-        super().__init__()
-
-    def setup(self, stage=None):
-        data = open_chat_logs(self.file_path)
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.good_dataset = PreprocessingDataset(data['good_messages'], tokenizer)
-        self.bad_dataset = PreprocessingDataset(data['bad_messages'], tokenizer)
-
-        self.users_messages = data['users_messages']
-        self.good_messages = None
-        self.bad_messages = None
-
-    def predict_dataloader(self):
-        good_dataloader = DataLoader(
-            self.good_dataset,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            collate_fn=self.good_dataset.collate_fn
-        )
-
-        bad_dataloader = DataLoader(
-            self.bad_dataset,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            collate_fn=self.bad_dataset.collate_fn
-        )
-
-        return good_dataloader, bad_dataloader
-
-    def export(self, output_directory):
-        if self.good_messages is None:
-            raise ValueError('Missing good messages')
-
-        if self.bad_messages is None:
-            raise ValueError('Missing bad messages')
-
-        def _write_chat_logs(fpath, chat_messages):
-            with open(fpath, 'w', newline='') as tsv_file:
-                tsv_writer = csv.writer(tsv_file, delimiter='\t')
-
-                for message in chat_messages:
-                    tsv_writer.writerow(message)
-
-        file_name = os.path.basename(self.file_path)
-        channel, _ = os.path.splitext(file_name)
-        _write_chat_logs(f'{output_directory}/{channel}_good_messsages.tsv', self.good_messages)
-        _write_chat_logs(f'{output_directory}/{channel}_bad_messsages.tsv', self.bad_messages)
-
-        with open(f'{output_directory}/{channel}_users_messages.json', 'w') as json_file:
-            json.dump(self.users_messages, json_file, indent=4)
+    with open(f'{output_directory}/{channel}_users_messages.json', 'w') as json_file:
+        json.dump(users_messages, json_file, indent=4)
 
 
 def open_chat_logs(fpath):
