@@ -27,8 +27,8 @@ def write_chat_logs(
 
     file_name = os.path.basename(input_fpath)
     channel, _ = os.path.splitext(file_name)
-    _write_chat_logs(f'{output_directory}/{channel}_good_messsages.tsv', good_messages)
-    _write_chat_logs(f'{output_directory}/{channel}_bad_messsages.tsv', bad_messages)
+    _write_chat_logs(f'{output_directory}/{channel}_good_messages.tsv', good_messages)
+    _write_chat_logs(f'{output_directory}/{channel}_bad_messages.tsv', bad_messages)
 
     with open(f'{output_directory}/{channel}_users_messages.json', 'w') as json_file:
         json.dump(users_messages, json_file, indent=4)
