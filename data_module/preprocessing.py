@@ -7,7 +7,7 @@ import json
 from typing import TYPE_CHECKING
 from collections import namedtuple, defaultdict, Counter
 from dataclasses import dataclass
-from pytorch_lightning import LightningDataModule
+from lightning import LightningDataModule
 
 from transformers import AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
