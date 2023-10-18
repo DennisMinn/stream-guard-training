@@ -45,7 +45,7 @@ class TwitchLogger(Callback):
 
     def on_train_end(self, trainer, lightning_module):
         # Log Metrics
-        wandb.log({'train/loss': self.loss / trainer.data_module.train_size})
+        wandb.log({'train/loss': self.train_loss / trainer.datamodule.train_size})
         wandb.log({'train/accuracy': accuracy(self.train)})
         wandb.log({'train/precision': precision(self.train)})
         wandb.log({'train/recall': recall(self.train)})
@@ -58,6 +58,7 @@ class TwitchLogger(Callback):
     def on_validation_end(self, trainer, lightning_module):
         from dataclasses import asdict
         # Log Metrics
+        wandb.log({'validation/loss': self.validation_loss / trainer.datamodule.val_size})
         wandb.log({'validation/accuracy': accuracy(self.validation)})
         wandb.log({'validation/precision': precision(self.validation)})
         wandb.log({'validation/recall': recall(self.validation)})
@@ -69,11 +70,10 @@ class TwitchLogger(Callback):
             list(asdict(item).values())
             for item in self.validation
         ]
-
-        # Reset Metrics
         table = wandb.Table(data=data, columns=columns)
         wandb.log({'validation/data': table})
 
+        # Reset Metrics
         self.validation = []
         self.validation_loss = 0
 

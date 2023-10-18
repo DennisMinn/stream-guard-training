@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', type=str)
     parser.add_argument('--batch_size', type=int)
     parser.add_argument('--num_epochs', type=int)
+    parser.add_argument('--learning_rate', type=float)
 
     args = parser.parse_args()
 
@@ -19,15 +20,17 @@ if __name__ == '__main__':
         file_path=args.input_path,
         model_name=args.model_name,
         batch_size=args.batch_size,
-        num_workers=0
+        num_workers=1
     )
     data_module.setup()
 
     # Model Setup
-    num_training_steps = args.num_epochs * data_module.train_step
+    num_training_steps = int(args.num_epochs * data_module.train_size / args.batch_size)
+
     model = TwitchModel(
         model_name=args.model_name,
-        num_training_steps=num_training_steps
+        num_training_steps=num_training_steps,
+        learning_rate=args.learning_rate
     )
 
     # Logger Setup
@@ -36,6 +39,9 @@ if __name__ == '__main__':
     # Training
     trainer = L.Trainer(
         logger=False,
-        max_steps=num_training_steps,
+        enable_progress_bar=False,
+        max_epochs=args.num_epochs,
         callbacks=[logger]
     )
+
+    trainer.fit(model, data_module)
