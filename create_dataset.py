@@ -2,6 +2,7 @@ import os
 import json
 import pickle
 import argparse
+from tqdm.auto import tqdm
 from data_module.preprocessing import (
     open_chat_logs,
     ChatMessage
@@ -40,14 +41,14 @@ def create_dataset(
         if kwargs.get('add_category'):
             datum['category'] = message.category
 
-        if kwargs.get('previous_messages'):
-            datum['previous_messages'] = previous_messages(
-                users_messages, message, kwargs['previous_user_messages']
+        if kwargs.get('num_previous_user_messages'):
+            datum['previous_user_messages'] = previous_messages(
+                users_messages[message.username], message, kwargs['num_previous_user_messages']
             )
 
-        if kwargs.get('context_messages'):
+        if kwargs.get('num_context_messages'):
             datum['context'] = context_messages(
-                chat_messages, message, kwargs['context_messages']
+                chat_messages, message, kwargs['num_context_messages']
             )
 
         data.append((datum, label))
@@ -61,7 +62,7 @@ def previous_messages(user_messages, chat_message, k=5):
         f'{message.username}: {message.text}'
         for message in user_messages[index-k: index]
     ]
-    previous_texts = '\n'.join(previous_messages)
+    previous_texts = '\n'.join(previous_texts)
 
     return previous_texts
 
@@ -84,14 +85,14 @@ if __name__ == '__main__':
     parser.add_argument('--output_file_path', type=str)
     parser.add_argument('--add_channel')
     parser.add_argument('--add_category')
-    parser.add_argument('--previous_user_messages', type=int)
-    parser.add_argument('--context_user_messages', type=int)
+    parser.add_argument('--num_previous_user_messages', type=int)
+    parser.add_argument('--num_context_messages', type=int)
 
     args = parser.parse_args()
     data = []
     raw_data_directory = args.raw_data_directory
     processed_data_directory = args.processed_data_directory
-    for file_name in os.listdir(raw_data_directory):
+    for file_name in tqdm(os.listdir(raw_data_directory)):
         channel, _ = os.path.splitext(file_name)
         raw_data_fpath = os.path.join(raw_data_directory, file_name)
         users_messages_fpath = os.path.join(processed_data_directory, f'{channel}_users_messages.json')
@@ -115,7 +116,7 @@ if __name__ == '__main__':
             data.extend(good_dataset)
             data.extend(bad_dataset)
         except:
-            print(f'Error with {file_name}')
+            print(f'Error with {channel}')
 
     with open(args.output_file_path, 'wb') as pickle_file:
         pickle.dump(data, pickle_file)
