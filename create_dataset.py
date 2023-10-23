@@ -1,12 +1,13 @@
 import os
+import csv
+import sys
 import json
 import pickle
 import argparse
 from tqdm.auto import tqdm
-from data_module.preprocessing import (
-    open_chat_logs,
-    ChatMessage
-)
+from data_module.preprocessing import ChatMessage
+
+csv.field_size_limit(sys.maxsize)
 
 
 def open_messages(users_messages_fpath, good_messages_fpath, bad_messages_fpath):
@@ -23,6 +24,25 @@ def open_messages(users_messages_fpath, good_messages_fpath, bad_messages_fpath)
     return users_messages, good_messages, bad_messages
 
 
+def open_chat_logs(fpath):
+    chat_messages = []
+
+    with open(fpath, 'r', newline='') as tsv_file:
+        tsv_reader = csv.reader(tsv_file, delimiter='\t')
+
+        for message in tsv_reader:
+            chat_message = ChatMessage(*message)
+            text = chat_message.text
+            if (
+                not text.startswith('DELETEDMESSAGE') and
+                not text == 'TIMEOUT' and
+                not text == 'BAN'
+            ):
+                chat_messages.append(chat_message)
+
+    return chat_messages
+
+
 def create_dataset(
     channel,
     chat_messages,
@@ -35,10 +55,10 @@ def create_dataset(
     for message in messages:
         datum = {'text': message.text}
 
-        if kwargs.get('add_channel'):
+        if kwargs.get('include_channel'):
             datum['channel'] = channel
 
-        if kwargs.get('add_category'):
+        if kwargs.get('include_category'):
             datum['category'] = message.category
 
         if kwargs.get('num_previous_user_messages'):
@@ -59,7 +79,7 @@ def create_dataset(
 def previous_messages(user_messages, chat_message, k=5):
     index = user_messages.index(chat_message)
     previous_texts = [
-        f'{message.username}: {message.text}'
+        message.text
         for message in user_messages[index-k: index]
     ]
     previous_texts = '\n'.join(previous_texts)
@@ -73,7 +93,7 @@ def context_messages(chat_messages, chat_message, k=2):
         f'{message.username}: {message.text}'
         for message in chat_messages[index-k: index+k]
     ]
-    context_texts = '\n'.join(context_messages)
+    context_texts = '\n'.join(context_texts)
 
     return context_texts
 
@@ -83,8 +103,8 @@ if __name__ == '__main__':
     parser.add_argument('--raw_data_directory', type=str)
     parser.add_argument('--processed_data_directory', type=str)
     parser.add_argument('--output_file_path', type=str)
-    parser.add_argument('--add_channel')
-    parser.add_argument('--add_category')
+    parser.add_argument('--include_channel', action='store_true')
+    parser.add_argument('--include_category', action='store_true')
     parser.add_argument('--num_previous_user_messages', type=int)
     parser.add_argument('--num_context_messages', type=int)
 

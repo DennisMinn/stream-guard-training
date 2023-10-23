@@ -56,7 +56,9 @@ class PreprocessingDataModule(LightningDataModule):
         super().__init__()
 
     def setup(self, stage=None):
-        data = open_chat_logs(self.file_path)
+        chat_messages = open_chat_logs(self.file_path)
+        data = chat_log_to_messages(chat_messages)
+
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.good_dataset = PreprocessingDataset(data['good_messages'], tokenizer)
         self.bad_dataset = PreprocessingDataset(data['bad_messages'], tokenizer)
@@ -64,6 +66,7 @@ class PreprocessingDataModule(LightningDataModule):
         self.users_messages = data['users_messages']
         self.good_messages = None
         self.bad_messages = None
+        self.false_positive_messages = None
 
     def predict_dataloader(self):
         good_dataloader = DataLoader(
@@ -100,6 +103,7 @@ class PreprocessingDataModule(LightningDataModule):
         channel, _ = os.path.splitext(file_name)
         _write_chat_logs(f'{output_directory}/{channel}_good_messsages.tsv', self.good_messages)
         _write_chat_logs(f'{output_directory}/{channel}_bad_messsages.tsv', self.bad_messages)
+        _write_chat_logs(f'{output_directory}/{channel}_false_positive_messsages.tsv', self.false_positive_messages)
 
         with open(f'{output_directory}/{channel}_users_messages.json', 'w') as json_file:
             json.dump(self.users_messages, json_file, indent=4)
@@ -119,6 +123,8 @@ def open_chat_logs(fpath):
 
 
 def chat_log_to_messages(chat_messages):
+    ChatMessage.__eq__ = lambda x, y: x.text == y.text
+
     users_messages = defaultdict(list)
     good_messages = set()
     bad_messages = set()
@@ -128,18 +134,23 @@ def chat_log_to_messages(chat_messages):
 
         if (
             (text.startswith('DELETEDMESSAGE') or text == 'TIMEOUT' or text == 'BAN') and
-            len(users_messages[username]) and
-            users_messages[username][-1].text != text  # Check for spam
+            len(users_messages[username]) > 0
         ):
             bad_messages.add(users_messages[username][-1])
         else:
             good_messages.add(message)
             users_messages[username].append(message)
 
-    good_messages = good_messages.difference(bad_messages)
+    # Warning: Set does not check __eq__ for membership
+    bad_messages = [
+        bad_message for bad_message in bad_messages
+        if clean_bad_message(bad_message)
+    ]
 
-    good_messages = [message for message in good_messages if clean_good_message(message)]
-    bad_messages = [message for message in bad_messages if clean_bad_message(message)]
+    good_messages = [
+        good_message for good_message in good_messages
+        if good_message not in bad_messages and clean_good_message(good_message)
+    ]
 
     return {
         'users_messages': users_messages,
@@ -185,13 +196,13 @@ def clean_bad_message(message):
     return True
 
 
-def clean_post_processing_messages(good_messages, bad_messages):
-    if len(bad_messages):
-        most_common_message = Counter([message.text.lower() for message in bad_messages]).most_common(1)
+def remove_common_message(messages):
+    if len(messages):
+        most_common_message = Counter([message.text.lower() for message in messages]).most_common(1)
         most_common_message = most_common_message[0][0]
-        bad_messages = [
-            message for message in bad_messages
+        messages = [
+            message for message in messages
             if most_common_message not in message.text.lower()
         ]
 
-    return good_messages, bad_messages
+    return messages

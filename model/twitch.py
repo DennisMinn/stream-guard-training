@@ -13,12 +13,18 @@ class TwitchModel(L.LightningModule):
         self,
         model_name,
         num_training_steps,
-        learning_rate
+        learning_rate,
+        num_warmup_steps,
+        eps,
+        weight_decay
     ):
         super().__init__()
         self.classifier = AutoModelForSequenceClassification.from_pretrained(model_name)
         self.num_training_steps = num_training_steps
         self.learning_rate = learning_rate
+        self.num_warmup_steps = num_warmup_steps
+        self.eps = eps
+        self.weight_decay = weight_decay
 
     def forward(self, batch_encodings):
         outputs = self.classifier(**batch_encodings)
@@ -52,11 +58,13 @@ class TwitchModel(L.LightningModule):
         optimizer = optim.AdamW(
             self.parameters(),
             lr=self.learning_rate,
+            eps=self.eps,
+            weight_decay=self.weight_decay
         )
 
         scheduler = get_linear_schedule_with_warmup(
             optimizer=optimizer,
-            num_warmup_steps=0,
+            num_warmup_steps=self.num_warmup_steps,
             num_training_steps=self.num_training_steps
         )
         return [optimizer], [scheduler]

@@ -38,7 +38,7 @@ class TwitchDataset(Dataset):
         batch_encodings = self.tokenizer(
             formatted_batch,
             padding='longest',
-            max_length=self.tokenizer.model_max_length,
+            max_length=128,
             truncation=True,
             return_tensors='pt'
         )

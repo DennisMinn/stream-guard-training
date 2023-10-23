@@ -1,9 +1,10 @@
 import argparse
+import wandb
 
 import lightning as L
 from data_module.preprocessing import (
     PreprocessingDataModule,
-    clean_post_processing_messages
+    remove_common_message
 )
 from model.preprocessing import (
     PreprocessingModel,
@@ -14,20 +15,16 @@ from model.preprocessing import (
 
 def clean_chat_logs(trainer, model, data_module):
     data_module.setup()
-    good_dataloader, bad_dataloader = data_module.predict_dataloader()
-    outputs = trainer.predict(model, [good_dataloader, bad_dataloader])
+    outputs = trainer.predict(model, data_module)
 
-    if outputs and outputs[0]:
-        good_embeddings = [batch_output['embeddings'] for batch_output in outputs[0]]
-        classifications = [batch_output['classifications'] for batch_output in outputs[0]]
-    else:
-        good_embeddings = []
-        classifications = []
+    if outputs is None:
+        return [], [], []
 
-    if outputs and outputs[1]:
-        bad_embeddings = [batch_output['embeddings'] for batch_output in outputs[1]]
-    else:
-        bad_embeddings = []
+    good_outputs, bad_outputs = outputs
+
+    good_embeddings = [batch_output['embeddings'] for batch_output in good_outputs]
+    classifications = [batch_output['classifications'] for batch_output in good_outputs]
+    bad_embeddings = [batch_output['embeddings'] for batch_output in bad_outputs]
 
     banned_usernames = set([message.username for message in data_module.bad_dataset])
     false_positive_messages = set([
@@ -41,11 +38,10 @@ def clean_chat_logs(trainer, model, data_module):
         for index in similar_message_indices(good_embeddings, bad_embeddings)
     ])
 
-    good_messages = similar_messages.union(false_positive_messages)
-    bad_messages = data_module.bad_dataset.messages
-    good_messages, bad_messages = clean_post_processing_messages(good_messages, bad_messages)
+    good_messages = similar_messages
+    bad_messages = remove_common_message(data_module.bad_dataset.messages)
 
-    return good_messages, bad_messages
+    return good_messages, bad_messages, false_positive_messages
 
 
 if __name__ == '__main__':
@@ -69,8 +65,12 @@ if __name__ == '__main__':
         num_workers=8
     )
 
-    data_module.good_messages, data_module.bad_messages = clean_chat_logs(trainer, model, data_module)
-    try:
-        data_module.export(args.output_directory)
-    except:
-        print(f'Error with {args.input_path}')
+    wandb.init(project='Preprocessing', name=args.input_path.split('/')[-1])
+    good_messages, bad_messages, false_positive_messages = clean_chat_logs(trainer, model, data_module)
+
+    data_module.good_messages = good_messages
+    data_module.bad_messages = bad_messages
+    data_module.false_positive_messages = false_positive_messages
+
+    data_module.export(args.output_directory)
+    wandb.finish()
