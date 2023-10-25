@@ -10,9 +10,15 @@ from data_module.preprocessing import ChatMessage
 csv.field_size_limit(sys.maxsize)
 
 
-def open_messages(users_messages_fpath, good_messages_fpath, bad_messages_fpath):
+def open_messages(
+    users_messages_fpath,
+    good_messages_fpath,
+    bad_messages_fpath,
+    false_positive_messages_fpath=None
+):
     good_messages = open_chat_logs(good_messages_fpath)
     bad_messages = open_chat_logs(bad_messages_fpath)
+    false_positive_messages = open_chat_logs(false_positive_messages_fpath)
 
     with open(users_messages_fpath, 'r', encoding='utf-8') as json_file:
         users_messages = json.load(json_file)
@@ -21,7 +27,7 @@ def open_messages(users_messages_fpath, good_messages_fpath, bad_messages_fpath)
             for username, messages in users_messages.items()
         }
 
-    return users_messages, good_messages, bad_messages
+    return users_messages, good_messages, bad_messages, false_positive_messages
 
 
 def open_chat_logs(fpath):
@@ -118,13 +124,15 @@ if __name__ == '__main__':
         users_messages_fpath = os.path.join(processed_data_directory, f'{channel}_users_messages.json')
         good_messages_fpath = os.path.join(processed_data_directory, f'{channel}_good_messages.tsv')
         bad_messages_fpath = os.path.join(processed_data_directory, f'{channel}_bad_messages.tsv')
+        false_positive_messages_fpath = os.path.join(processed_data_directory, f'{channel}_false_positive_messages.tsv')
 
         try:
             chat_messages = open_chat_logs(raw_data_fpath)
-            users_messages, good_messages, bad_messages = open_messages(
+            users_messages, good_messages, bad_messages, false_positive_messages = open_messages(
                 users_messages_fpath,
                 good_messages_fpath,
-                bad_messages_fpath
+                bad_messages_fpath,
+                false_positive_messages_fpath
             )
 
             good_dataset = create_dataset(
@@ -133,8 +141,13 @@ if __name__ == '__main__':
             bad_dataset = create_dataset(
                 channel, chat_messages, users_messages, bad_messages, 1, **vars(args)
             )
+            false_positive_dataset = create_dataset(
+                channel, chat_messages, users_messages, false_positive_messages, 0, **vars(args)
+            )
+
             data.extend(good_dataset)
             data.extend(bad_dataset)
+            data.extend(false_positive_dataset)
         except:
             print(f'Error with {channel}')
 
