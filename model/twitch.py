@@ -67,4 +67,5 @@ class TwitchModel(L.LightningModule):
             num_warmup_steps=self.num_warmup_steps,
             num_training_steps=self.num_training_steps
         )
-        return [optimizer], [scheduler]
+
+        return [optimizer], [{'scheduler': scheduler, 'interval': 'step'}]

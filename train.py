@@ -51,6 +51,7 @@ if __name__ == '__main__':
     trainer = L.Trainer(
         logger=wandb_logger,
         enable_progress_bar=False,
+        enable_checkpointing=False,
         max_epochs=args.num_epochs,
         callbacks=[logger, lr_monitor]
     )

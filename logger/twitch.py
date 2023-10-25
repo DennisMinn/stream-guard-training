@@ -11,13 +11,21 @@ class TwitchLogger(Callback):
             name=datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
             config=kwargs
         )
+        wandb.define_metric('train/step')
+        wandb.define_metric('train/*', step_metric='train/step')
+
+        wandb.define_metric('validation/step')
+        wandb.define_metric('validation/*', step_metric='validation/step')
 
         self.config = kwargs
 
         self.train = []
-        self.validation = []
         self.train_loss = 0
+        self.train_step = 0
+
+        self.validation = []
         self.validation_loss = 0
+        self.validation_step = 0
 
     def on_train_batch_end(
         self,
@@ -43,39 +51,52 @@ class TwitchLogger(Callback):
         self.validation += outputs['twitch_items']
         self.validation_loss += outputs['loss']
 
-    def on_train_end(self, trainer, lightning_module):
+    def on_train_epoch_end(self, trainer, lightning_module):
         # Log Metrics
-        wandb.log({'train/loss': self.train_loss / trainer.datamodule.train_size})
-        wandb.log({'train/accuracy': accuracy(self.train)})
-        wandb.log({'train/precision': precision(self.train)})
-        wandb.log({'train/recall': recall(self.train)})
-        wandb.log({'train/f1': f1(self.train)})
+        metrics = {
+            'train/loss': self.train_loss / trainer.datamodule.train_size,
+            'train/accuracy': accuracy(self.train),
+            'train/precision': precision(self.train),
+            'train/recall': recall(self.train),
+            'train/f1': f1(self.train),
+            'train/step': self.train_step
+        }
+
+        wandb.log(metrics)
 
         # Reset metrics
         self.train = []
         self.train_loss = 0
+        self.train_step += 1
 
-    def on_validation_end(self, trainer, lightning_module):
+    def on_validation_epoch_end(self, trainer, lightning_module):
         from dataclasses import asdict
-        # Log Metrics
-        wandb.log({'validation/loss': self.validation_loss / trainer.datamodule.val_size})
-        wandb.log({'validation/accuracy': accuracy(self.validation)})
-        wandb.log({'validation/precision': precision(self.validation)})
-        wandb.log({'validation/recall': recall(self.validation)})
-        wandb.log({'validation/f1': f1(self.validation)})
 
-        # Log Data
+        # Log data
         columns = list(asdict(self.validation[0]).keys())
         data = [
             list(asdict(item).values())
             for item in self.validation
         ]
         table = wandb.Table(data=data, columns=columns)
-        wandb.log({'validation/data': table})
+
+        # Log Metrics
+        metrics = {
+            'validation/loss': self.validation_loss / trainer.datamodule.val_size,
+            'validation/accuracy': accuracy(self.validation),
+            'validation/precision': precision(self.validation),
+            'validation/recall': recall(self.validation),
+            'validation/f1': f1(self.validation),
+            'validation/data': table,
+            'validation/step': self.validation_step
+        }
+
+        wandb.log(metrics)
 
         # Reset Metrics
         self.validation = []
         self.validation_loss = 0
+        self.validation_step += 1
 
     def teardown(self, trainer, lightning_module, stage):
         wandb.finish()
