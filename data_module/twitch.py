@@ -1,4 +1,6 @@
+import os
 import pickle
+import json
 from typing import TYPE_CHECKING
 
 import torch
@@ -10,6 +12,8 @@ from dataclasses import dataclass, field
 if TYPE_CHECKING:
     from typing import List
     from transformers import PreTrainedTokenizerFast
+
+DEFAULT_MODEL = 'cardiffnlp/twitter-roberta-base-hate-latest'
 
 
 @dataclass
@@ -54,9 +58,9 @@ class TwitchDataset(Dataset):
 @dataclass
 class TwitchDataModule(LightningDataModule):
     file_path: str
-    model_name: str
-    batch_size: int
-    num_workers: int = 0
+    model_name: str = field(init=False, default=DEFAULT_MODEL)
+    batch_size: int = field(init=False, default=32)
+    num_workers: int = field(init=False, default=0)
 
     def __post_init__(self):
         super().__init__()
@@ -74,7 +78,7 @@ class TwitchDataModule(LightningDataModule):
         dataset = TwitchDataset(self.data, tokenizer)
         self.collate_fn = dataset.collate_fn
 
-        self.train_size = int(0.8 * len(self.data))
+        self.train_size = int(0.9 * len(self.data))
         self.val_size = len(self.data) - self.train_size
         self.train_dataset, self.val_dataset = random_split(
             dataset, [self.train_size, self.val_size]
@@ -101,3 +105,20 @@ class TwitchDataModule(LightningDataModule):
         )
 
         return dataloader
+
+    def openAI_export(self, output_fpath):
+        def _write_jsonl(output_fpath, data):
+            data = [
+                {'prompt': item.text, 'completion': str(item.label)}
+                for item in data
+            ]
+
+            with open(output_fpath, 'w') as jsonl_file:
+                for item in data:
+                    jsonl_file.write(json.dumps(item) + '\n')
+
+        directory, file_name = os.path.split(output_fpath)
+        train_path = os.path.join(directory, f'train_{file_name}')
+        val_path = os.path.join(directory, f'validation_{file_name}')
+        _write_jsonl(train_path, self.train_dataset)
+        _write_jsonl(val_path, self.val_dataset)
